@@ -70,6 +70,14 @@ std::vector<hardware_interface::CommandInterface> RoombaHardwareInterface::expor
 hardware_interface::CallbackReturn RoombaHardwareInterface::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
+  // Create ROS2 node for publishers
+  node_ = std::make_shared<rclcpp::Node>("roomba_hardware_interface");
+  
+  // Create publishers for sensor data
+  battery_state_publisher_ = node_->create_publisher<sensor_msgs::msg::BatteryState>("~/battery_state", 10);
+  wheel_speed_publisher_ = node_->create_publisher<std_msgs::msg::Float32>("~/wheel_speed", 10);
+  charging_state_publisher_ = node_->create_publisher<std_msgs::msg::Float32>("~/charging_state", 10);
+  
   // Create Roomba hardware instance
   roomba_ = std::make_unique<RoombaHardware>(port_, baud_rate_);
   
@@ -102,6 +110,12 @@ hardware_interface::CallbackReturn RoombaHardwareInterface::on_deactivate(
     roomba_->disconnect();
   }
   
+  // Reset publishers
+  battery_state_publisher_.reset();
+  wheel_speed_publisher_.reset();
+  charging_state_publisher_.reset();
+  node_.reset();
+  
   RCLCPP_INFO(rclcpp::get_logger("RoombaHardwareInterface"), "Successfully deactivated Roomba hardware interface");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -113,9 +127,68 @@ hardware_interface::return_type RoombaHardwareInterface::read(
     return hardware_interface::return_type::ERROR;
   }
   
-  // In a real implementation, we would read sensor data from the Roomba
-  // and update the state interfaces accordingly
-  // For now, we'll just increment positions based on commands
+  // Read sensor data from Roomba
+  uint16_t battery_charge = roomba_->read_battery_charge();
+  uint16_t battery_capacity = roomba_->read_battery_capacity();
+  uint16_t voltage = roomba_->read_voltage();
+  int16_t current = roomba_->read_current();
+  int8_t temperature = roomba_->read_temperature();
+  uint8_t charging_state = roomba_->read_charging_state();
+  int16_t distance = roomba_->read_distance();
+  int16_t angle = roomba_->read_angle();  // 添加角度读取
+  
+  // Create and publish battery state message
+  auto battery_msg = std::make_unique<sensor_msgs::msg::BatteryState>();
+  battery_msg->header.stamp = node_->now();
+  battery_msg->voltage = static_cast<float>(voltage) / 1000.0f; // mV to V
+  battery_msg->current = static_cast<float>(current) / 1000.0f; // mA to A
+  battery_msg->charge = static_cast<float>(battery_charge) / 1000.0f; // mAh to Ah
+  battery_msg->capacity = static_cast<float>(battery_capacity) / 1000.0f; // mAh to Ah
+  battery_msg->temperature = static_cast<float>(temperature);
+  battery_msg->percentage = static_cast<float>(battery_charge) / static_cast<float>(battery_capacity);
+  
+  // Set power supply status based on charging state
+  switch (charging_state) {
+    case 0: // Not charging
+      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_NOT_CHARGING;
+      break;
+    case 1: // Reconditioning charging
+      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING;
+      break;
+    case 2: // Full charging
+      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING;
+      break;
+    case 3: // Trickle charging
+      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING;
+      break;
+    case 4: // Waiting
+      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_NOT_CHARGING;
+      break;
+    case 5: // Charging fault condition
+      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_UNKNOWN;
+      break;
+    default:
+      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_UNKNOWN;
+  }
+  
+  battery_msg->power_supply_health = sensor_msgs::msg::BatteryState::POWER_SUPPLY_HEALTH_UNKNOWN;
+  battery_msg->power_supply_technology = sensor_msgs::msg::BatteryState::POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+  battery_msg->present = true;
+  
+  // Publish battery state
+  battery_state_publisher_->publish(std::move(battery_msg));
+  
+  // Create and publish wheel speed message (using distance as a simple speed indicator)
+  auto wheel_speed_msg = std::make_unique<std_msgs::msg::Float32>();
+  wheel_speed_msg->data = static_cast<float>(distance);
+  wheel_speed_publisher_->publish(std::move(wheel_speed_msg));
+  
+  // Create and publish charging state message
+  auto charging_state_msg = std::make_unique<std_msgs::msg::Float32>();
+  charging_state_msg->data = static_cast<float>(charging_state);
+  charging_state_publisher_->publish(std::move(charging_state_msg));
+  
+  // Update the state interfaces (wheel positions)
   for (uint i = 0; i < hw_states_.size(); i++) {
     hw_states_[i] += hw_commands_[i] * 0.01; // Simple integration
   }

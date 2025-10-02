@@ -15,6 +15,10 @@
 #include "roomba_hardware_interface/visibility_control.h"
 #include "roomba_hardware_interface/roomba_hardware_driver.hpp"
 
+// 添加传感器消息头文件
+#include "sensor_msgs/msg/battery_state.hpp"
+#include "std_msgs/msg/float32.hpp"
+
 namespace roomba_hardware_interface
 {
 class RoombaHardwareInterface : public hardware_interface::SystemInterface
@@ -57,6 +61,14 @@ private:
   std::vector<double> current_wheel_velocities_;  // 当前实际发送给轮子的速度
   double max_acceleration_;  // 最大加速度 (rad/s^2)
   double wheel_radius_;      // 轮子半径 (m)
+  
+  // 添加传感器数据发布者
+  rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr battery_state_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr wheel_speed_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr charging_state_publisher_;
+  
+  // 添加ROS2节点用于创建发布者
+  std::shared_ptr<rclcpp::Node> node_;
 };
 
 }  // namespace roomba_hardware_interface
