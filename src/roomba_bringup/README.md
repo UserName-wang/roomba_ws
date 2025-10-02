@@ -8,7 +8,7 @@ The Roomba Bringup package enables quick deployment of the Roomba robot with ROS
 
 - Launch files for various operational modes
 - Controller configurations for differential drive control
-- Robot description files (URDF)
+- Robot description files (URDF) - now in the `roomba_description` package
 - RViz configurations for visualization
 - Teleoperation support with joystick
 
@@ -45,9 +45,6 @@ roomba_bringup/
 │   ├── roomba_node.py           # Main Roomba node
 │   ├── tf_publisher.py          # TF publisher
 │   └── test_controller.py       # Test controller
-├── urdf/
-│   ├── roomba.urdf              # Robot description
-│   └── roomba.urdf.xacro        # Parameterized robot description
 ├── package.xml                  # Package metadata
 ├── CMakeLists.txt               # Build configuration
 └── README.md                    # This file
@@ -57,6 +54,7 @@ roomba_bringup/
 
 - ROS 2 Humble
 - `roomba_hardware_interface` package
+- `roomba_description` package (for robot description files)
 - `controller_manager`
 - `diff_drive_controller`
 - `joint_state_broadcaster`
@@ -105,7 +103,7 @@ To operate with a real Roomba robot:
 This will start:
 - The hardware interface to communicate with the Roomba
 - The controller manager with differential drive controller
-- The robot state publisher
+- The robot state publisher (using URDF from `roomba_description` package)
 - RViz for visualization
 
 ### Simulation
@@ -116,7 +114,7 @@ ros2 launch roomba_bringup simulation.launch.py
 ```
 
 This will start:
-- Gazebo with the Roomba model
+- Gazebo with the Roomba model (using URDF from `roomba_description` package)
 - The controller manager with differential drive controller
 - The robot state publisher
 - RViz for visualization
@@ -216,12 +214,7 @@ The differential drive controller is configured in `config/roomba_controllers.ya
 
 ## URDF Description
 
-The robot is described in `urdf/roomba.urdf` and `urdf/roomba.urdf.xacro`. The description includes:
-- Base link
-- Left and right wheels
-- Continuous joints for wheels
-- Inertial properties
-- Visual and collision geometries
+The robot description files (URDF) have been moved to the `roomba_description` package to maintain a clear separation of concerns. The launch files in this package now reference the URDF files from the `roomba_description` package.
 
 ## RViz Configuration
 

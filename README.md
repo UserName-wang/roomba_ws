@@ -157,6 +157,14 @@ The differential drive controller is configured in `roomba_bringup/config/roomba
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
 
+## Package Structure Changes
+
+The URDF files have been moved from the `roomba_bringup` package to the dedicated `roomba_description` package to maintain a clear separation of concerns. This change ensures that robot description files are centralized in one location and can be easily reused by other packages.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the LICENSE file in each package for details.
