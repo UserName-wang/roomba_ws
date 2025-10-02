@@ -1,0 +1,9 @@
+<library path="roomba_hardware_interface">
+  <class name="roomba_hardware_interface/RoombaHardwareInterface"
+         type="roomba_hardware_interface::RoombaHardwareInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      The roomba robot hardware interface for ROS 2 control framework.
+    </description>
+  </class>
+</library>
