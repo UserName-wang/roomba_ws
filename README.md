@@ -11,7 +11,6 @@ The main package for launching and configuring the Roomba robot with ROS 2. It p
 Key features:
 - Launch files for real robot operation and simulation
 - Controller configurations for differential drive control
-- Robot description files (URDF)
 - RViz configurations for visualization
 - Teleoperation support with joystick
 - TF transformation publishing
