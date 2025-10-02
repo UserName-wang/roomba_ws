@@ -1,85 +1,63 @@
 import os
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
-    # 获取包的share目录
-    pkg_share = get_package_share_directory('roomba_bringup')
-    
-    # 定义URDF文件路径
-    urdf_file_name = 'urdf/roomba.urdf'
-    urdf = os.path.join(pkg_share, urdf_file_name)
-    
-    # 读取URDF文件内容
-    with open(urdf, 'r') as infp:
-        robot_desc = infp.read()
-    
-    # 定义launch参数
-    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
-    
+    # Launch arguments
+    use_rviz_arg = DeclareLaunchArgument(
+        'use_rviz',
+        default_value='true',
+        description='Use RViz for visualization'
+    )
+
+    # Get package directories
+    roomba_bringup_dir = get_package_share_directory('roomba_bringup')
+    roomba_description_dir = get_package_share_directory('roomba_description')
+
+    # Robot state publisher
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='screen',
+        arguments=[os.path.join(roomba_description_dir, 'urdf', 'roomba.urdf')]
+    )
+
+    # TF publisher
+    tf_publisher = Node(
+        package='roomba_bringup',
+        executable='tf_publisher',
+        name='tf_publisher',
+        output='screen'
+    )
+
+    # Joint state publisher
+    joint_state_publisher = Node(
+        package='joint_state_publisher',
+        executable='joint_state_publisher',
+        name='joint_state_publisher',
+        output='screen'
+    )
+
+    # RViz
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=['-d', os.path.join(roomba_bringup_dir, 'config', 'roomba.rviz')],
+        condition=IfCondition(LaunchConfiguration('use_rviz'))
+    )
+
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'use_sim_time',
-            default_value='false',
-            description='Use simulation (Gazebo) clock if true'),
-        
-        # 发布map到odom的静态变换
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_transform_publisher_map_odom',
-            output='screen',
-            arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom']
-        ),
-        
-        # 发布odom到base_link的静态变换
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_transform_publisher_odom_base',
-            output='screen',
-            arguments=['0', '0', '0', '0', '0', '0', 'odom', 'base_link']
-        ),
-        
-        # 发布robot_state_publisher节点
-        Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='robot_state_publisher',
-            output='screen',
-            parameters=[{
-                'use_sim_time': use_sim_time, 
-                'robot_description': robot_desc
-            }]),
-        
-        # 发布joint_state_publisher节点
-        Node(
-            package='joint_state_publisher',
-            executable='joint_state_publisher',
-            name='joint_state_publisher',
-            output='screen',
-            parameters=[{
-                'use_sim_time': use_sim_time
-            }]),
-        
-        # 发布joint_state_publisher_gui节点（可选）
-        Node(
-            package='joint_state_publisher_gui',
-            executable='joint_state_publisher_gui',
-            name='joint_state_publisher_gui',
-            output='screen',
-            parameters=[{
-                'use_sim_time': use_sim_time
-            }]),
-        
-        # 启动RViz
-        Node(
-            package='rviz2',
-            executable='rviz2',
-            name='rviz2',
-            output='screen',
-            arguments=['-d', os.path.join(pkg_share, 'config', 'roomba.rviz')])
+        use_rviz_arg,
+        robot_state_publisher,
+        tf_publisher,
+        joint_state_publisher,
+        rviz_node,
     ])

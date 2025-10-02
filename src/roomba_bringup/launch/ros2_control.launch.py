@@ -25,6 +25,7 @@ def generate_launch_description():
 
     # Get package directories
     roomba_bringup_dir = get_package_share_directory('roomba_bringup')
+    roomba_description_dir = get_package_share_directory('roomba_description')
 
     # Robot state publisher
     robot_state_publisher = Node(
@@ -32,7 +33,7 @@ def generate_launch_description():
         executable='robot_state_publisher',
         name='robot_state_publisher',
         output='screen',
-        arguments=[os.path.join(roomba_bringup_dir, 'urdf', 'roomba.urdf')]
+        arguments=[os.path.join(roomba_description_dir, 'urdf', 'roomba.urdf')]
     )
 
     # Controller manager

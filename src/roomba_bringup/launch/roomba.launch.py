@@ -25,6 +25,7 @@ def generate_launch_description():
 
     # Get package directories
     roomba_bringup_dir = get_package_share_directory('roomba_bringup')
+    roomba_description_dir = get_package_share_directory('roomba_description')
 
     # Include ros2_control launch file
     ros2_control_launch = IncludeLaunchDescription(
@@ -35,6 +36,15 @@ def generate_launch_description():
             'use_joystick': LaunchConfiguration('use_joystick'),
             'use_sim': 'false'
         }.items()
+    )
+
+    # Robot state publisher
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='screen',
+        arguments=[os.path.join(roomba_description_dir, 'urdf', 'roomba.urdf')]
     )
 
     # RViz
@@ -50,6 +60,7 @@ def generate_launch_description():
     return LaunchDescription([
         use_joystick_arg,
         use_rviz_arg,
+        robot_state_publisher,
         ros2_control_launch,
         rviz_node,
     ])
