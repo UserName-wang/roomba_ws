@@ -11,38 +11,35 @@
 
 namespace roomba_hardware_interface
 {
-hardware_interface::CallbackReturn RoombaHardwareInterface::on_init(
+hardware_interface::return_type RoombaHardwareInterface::configure(
   const hardware_interface::HardwareInfo & info)
 {
-  if (hardware_interface::SystemInterface::on_init(info) != hardware_interface::CallbackReturn::SUCCESS)
-  {
-    return hardware_interface::CallbackReturn::ERROR;
-  }
-
+  info_ = info;
+  
   // Initialize vectors for commands and states
   hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   current_wheel_velocities_.resize(info_.joints.size(), 0.0);
 
   // Get parameters
-  port_ = info_.hardware_parameters["port"];
-  baud_rate_ = std::stoi(info_.hardware_parameters["baud_rate"]);
+  port_ = info_.hardware_parameters.at("port");
+  baud_rate_ = std::stoi(info_.hardware_parameters.at("baud_rate"));
   
   // Get acceleration parameter or use default value
   if (info_.hardware_parameters.count("max_acceleration") > 0) {
-    max_acceleration_ = std::stod(info_.hardware_parameters["max_acceleration"]);
+    max_acceleration_ = std::stod(info_.hardware_parameters.at("max_acceleration"));
   } else {
     max_acceleration_ = 0.5; // 默认最大加速度 0.5 rad/s^2
   }
   
   // Get wheel radius parameter or use default value
   if (info_.hardware_parameters.count("wheel_radius") > 0) {
-    wheel_radius_ = std::stod(info_.hardware_parameters["wheel_radius"]);
+    wheel_radius_ = std::stod(info_.hardware_parameters.at("wheel_radius"));
   } else {
     wheel_radius_ = 0.03; // 默认轮子半径 3cm
   }
 
-  return hardware_interface::CallbackReturn::SUCCESS;
+  return hardware_interface::return_type::OK;
 }
 
 std::vector<hardware_interface::StateInterface> RoombaHardwareInterface::export_state_interfaces()
@@ -67,8 +64,7 @@ std::vector<hardware_interface::CommandInterface> RoombaHardwareInterface::expor
   return command_interfaces;
 }
 
-hardware_interface::CallbackReturn RoombaHardwareInterface::on_activate(
-  const rclcpp_lifecycle::State & /*previous_state*/)
+hardware_interface::return_type RoombaHardwareInterface::start()
 {
   // Create ROS2 node for publishers
   node_ = std::make_shared<rclcpp::Node>("roomba_hardware_interface");
@@ -84,7 +80,7 @@ hardware_interface::CallbackReturn RoombaHardwareInterface::on_activate(
   // Connect to Roomba
   if (!roomba_->connect()) {
     RCLCPP_FATAL(rclcpp::get_logger("RoombaHardwareInterface"), "Failed to connect to Roomba");
-    return hardware_interface::CallbackReturn::ERROR;
+    return hardware_interface::return_type::ERROR;
   }
   
   // Start Roomba and set to safe mode
@@ -99,11 +95,10 @@ hardware_interface::CallbackReturn RoombaHardwareInterface::on_activate(
   }
   
   RCLCPP_INFO(rclcpp::get_logger("RoombaHardwareInterface"), "Successfully activated Roomba hardware interface");
-  return hardware_interface::CallbackReturn::SUCCESS;
+  return hardware_interface::return_type::OK;
 }
 
-hardware_interface::CallbackReturn RoombaHardwareInterface::on_deactivate(
-  const rclcpp_lifecycle::State & /*previous_state*/)
+hardware_interface::return_type RoombaHardwareInterface::stop()
 {
   if (roomba_) {
     roomba_->stop();
@@ -117,97 +112,79 @@ hardware_interface::CallbackReturn RoombaHardwareInterface::on_deactivate(
   node_.reset();
   
   RCLCPP_INFO(rclcpp::get_logger("RoombaHardwareInterface"), "Successfully deactivated Roomba hardware interface");
-  return hardware_interface::CallbackReturn::SUCCESS;
+  return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type RoombaHardwareInterface::read(
-  const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
+hardware_interface::return_type RoombaHardwareInterface::read()
 {
   if (!roomba_) {
+    RCLCPP_ERROR(node_->get_logger(), "Roomba hardware interface not initialized");
     return hardware_interface::return_type::ERROR;
   }
   
-  // Read sensor data from Roomba
-  uint16_t battery_charge = roomba_->read_battery_charge();
-  uint16_t battery_capacity = roomba_->read_battery_capacity();
-  uint16_t voltage = roomba_->read_voltage();
-  int16_t current = roomba_->read_current();
-  int8_t temperature = roomba_->read_temperature();
-  uint8_t charging_state = roomba_->read_charging_state();
-  int16_t distance = roomba_->read_distance();
-  int16_t angle = roomba_->read_angle();  // 添加角度读取
-  
-  // Create and publish battery state message
-  auto battery_msg = std::make_unique<sensor_msgs::msg::BatteryState>();
-  battery_msg->header.stamp = node_->now();
-  battery_msg->voltage = static_cast<float>(voltage) / 1000.0f; // mV to V
-  battery_msg->current = static_cast<float>(current) / 1000.0f; // mA to A
-  battery_msg->charge = static_cast<float>(battery_charge) / 1000.0f; // mAh to Ah
-  battery_msg->capacity = static_cast<float>(battery_capacity) / 1000.0f; // mAh to Ah
-  battery_msg->temperature = static_cast<float>(temperature);
-  battery_msg->percentage = static_cast<float>(battery_charge) / static_cast<float>(battery_capacity);
-  
-  // Set power supply status based on charging state
-  switch (charging_state) {
-    case 0: // Not charging
-      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_NOT_CHARGING;
-      break;
-    case 1: // Reconditioning charging
-      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING;
-      break;
-    case 2: // Full charging
-      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING;
-      break;
-    case 3: // Trickle charging
-      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING;
-      break;
-    case 4: // Waiting
-      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_NOT_CHARGING;
-      break;
-    case 5: // Charging fault condition
-      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_UNKNOWN;
-      break;
-    default:
-      battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_UNKNOWN;
-  }
-  
-  battery_msg->power_supply_health = sensor_msgs::msg::BatteryState::POWER_SUPPLY_HEALTH_UNKNOWN;
-  battery_msg->power_supply_technology = sensor_msgs::msg::BatteryState::POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
-  battery_msg->present = true;
-  
-  // Publish battery state
-  battery_state_publisher_->publish(std::move(battery_msg));
-  
-  // Create and publish wheel speed message (using distance as a simple speed indicator)
-  auto wheel_speed_msg = std::make_unique<std_msgs::msg::Float32>();
-  wheel_speed_msg->data = static_cast<float>(distance);
-  wheel_speed_publisher_->publish(std::move(wheel_speed_msg));
-  
-  // Create and publish charging state message
-  auto charging_state_msg = std::make_unique<std_msgs::msg::Float32>();
-  charging_state_msg->data = static_cast<float>(charging_state);
-  charging_state_publisher_->publish(std::move(charging_state_msg));
-  
-  // Update the state interfaces (wheel positions)
-  for (uint i = 0; i < hw_states_.size(); i++) {
-    hw_states_[i] += hw_commands_[i] * 0.01; // Simple integration
+  try {
+    // Read sensor data from Roomba
+    uint16_t battery_charge = roomba_->read_battery_charge();
+    uint16_t battery_capacity = roomba_->read_battery_capacity();
+    int8_t temperature = roomba_->read_temperature();
+    uint8_t charging_state = roomba_->read_charging_state();
+    
+    // Create and publish battery state message
+    auto battery_msg = std::make_unique<sensor_msgs::msg::BatteryState>();
+    battery_msg->header.stamp = node_->now();
+    battery_msg->voltage = 12.0f; // Nominal voltage for Roomba
+    battery_msg->current = 0.0f; // Not directly available
+    battery_msg->charge = static_cast<float>(battery_charge) / 1000.0f; // mAh to Ah
+    battery_msg->capacity = static_cast<float>(battery_capacity) / 1000.0f; // mAh to Ah
+    battery_msg->temperature = static_cast<float>(temperature);
+    battery_msg->percentage = static_cast<float>(battery_charge) / static_cast<float>(battery_capacity);
+    
+    // Map charging state to power supply status
+    switch (charging_state) {
+      case 0: // Not charging
+        battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_NOT_CHARGING;
+        break;
+      case 1: // Reconditioning charging
+      case 2: // Full charging
+      case 3: // Trickle charging
+        battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING;
+        break;
+      case 4: // Waiting
+        battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_NOT_CHARGING;
+        break;
+      case 5: // Charging fault condition
+        battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_NOT_CHARGING;
+        break;
+      default:
+        battery_msg->power_supply_status = sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_UNKNOWN;
+    }
+    
+    battery_msg->power_supply_health = sensor_msgs::msg::BatteryState::POWER_SUPPLY_HEALTH_UNKNOWN;
+    battery_msg->power_supply_technology = sensor_msgs::msg::BatteryState::POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+    battery_msg->present = true;
+    
+    // Publish battery state
+    battery_state_publisher_->publish(std::move(battery_msg));
+    
+    // Update velocity commands from topics
+    // These are handled by the subscription callbacks
+    
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(node_->get_logger(), "Exception in read: %s", e.what());
+    return hardware_interface::return_type::ERROR;
   }
   
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type RoombaHardwareInterface::write(
-  const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
+hardware_interface::return_type RoombaHardwareInterface::write()
 {
   if (!roomba_) {
     return hardware_interface::return_type::ERROR;
   }
   
   // Apply smooth acceleration control
-  double dt = period.seconds();
-  if (dt <= 0) {
-    dt = 0.01; // Default to 10ms if period is invalid
-  }
+  double dt = 0.01; // Default to 10ms
   
   // Calculate maximum velocity change allowed in this time step
   double max_velocity_change = max_acceleration_ * dt;
@@ -249,6 +226,15 @@ hardware_interface::return_type RoombaHardwareInterface::write(
   }
   
   return hardware_interface::return_type::OK;
+}
+std::string RoombaHardwareInterface::get_name() const
+{
+  return "RoombaHardwareInterface";
+}
+
+hardware_interface::status RoombaHardwareInterface::get_status() const
+{
+  return hardware_interface::status::UNKNOWN;
 }
 
 }  // namespace roomba_hardware_interface

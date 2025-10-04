@@ -35,7 +35,7 @@ ros2 launch roomba_driver_test test_driver.launch.py
 ### Launch with custom serial port
 
 ```bash
-ros2 launch roomba_driver_test test_driver.launch.py port:=/dev/ttyUSB1
+ros2 launch roomba_driver_test test_driver.launch.py port:=/dev/ttyUSB0
 ```
 
 ### Launch without joystick

@@ -27,7 +27,7 @@ public:
   RCLCPP_SHARED_PTR_DEFINITIONS(RoombaHardwareInterface)
 
   ROOMBA_HARDWARE_INTERFACE_PUBLIC
-  hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo & info) override;
+  hardware_interface::return_type configure(const hardware_interface::HardwareInfo & info) override;
 
   ROOMBA_HARDWARE_INTERFACE_PUBLIC
   std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
@@ -36,22 +36,29 @@ public:
   std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
 
   ROOMBA_HARDWARE_INTERFACE_PUBLIC
-  hardware_interface::CallbackReturn on_activate(const rclcpp_lifecycle::State & previous_state) override;
+  hardware_interface::return_type start() override;
 
   ROOMBA_HARDWARE_INTERFACE_PUBLIC
-  hardware_interface::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
+  hardware_interface::return_type stop() override;
 
   ROOMBA_HARDWARE_INTERFACE_PUBLIC
-  hardware_interface::return_type read(const rclcpp::Time & time, const rclcpp::Duration & period) override;
+  hardware_interface::return_type read() override;
 
   ROOMBA_HARDWARE_INTERFACE_PUBLIC
-  hardware_interface::return_type write(const rclcpp::Time & time, const rclcpp::Duration & period) override;
+  hardware_interface::return_type write() override;
+
+  ROOMBA_HARDWARE_INTERFACE_PUBLIC
+  std::string get_name() const override;
+
+  ROOMBA_HARDWARE_INTERFACE_PUBLIC
+  hardware_interface::status get_status() const override;
 
 private:
   // Roomba hardware communication
   std::unique_ptr<RoombaHardware> roomba_;
 
   // Store the hardware information
+  hardware_interface::HardwareInfo info_;
   std::vector<double> hw_commands_;
   std::vector<double> hw_states_;
   std::string port_;
